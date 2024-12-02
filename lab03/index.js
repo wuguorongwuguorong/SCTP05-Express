@@ -109,12 +109,16 @@ async function main() {
             }
     
             // Fetch the cuisine document
+            
             const cuisineDoc = await db.collection('cuisines').findOne({ name: cuisine });
+            console.log(cuisine);
+            console.log("cusineDoc >>> ",cuisineDoc);
             if (!cuisineDoc) {
                 return res.status(400).json({ error: 'Invalid cuisine' });
             }
     
             // Fetch the tag documents
+            console.log(tags);
             const tagDocs = await db.collection('tags').find({ name: { $in: tags } }).toArray();
             if (tagDocs.length !== tags.length) {
                 return res.status(400).json({ error: 'One or more invalid tags' });
