@@ -7,6 +7,7 @@ const MongoClient = require("mongodb").MongoClient;
 const dbname = "recipie_book"; // CHANGE THIS TO YOUR ACTUAL DATABASE NAME
 
 const mongoUri = process.env.MONGO_URI;
+const bcrypt = require('bcrypt');
 
 let app = express();
 
@@ -36,7 +37,7 @@ async function main() {
                 tags: 1,
                 prepTime: 1,
             }).toArray();
-            
+
             res.json({ recipies });
         } catch (error) {
             console.error("Error fetching recipies:", error);
@@ -102,28 +103,28 @@ async function main() {
     app.post('/recipies', async (req, res) => {
         try {
             const { name, cuisine, prepTime, cookTime, servings, ingredients, instructions, tags } = req.body;
-    
+
             // Basic validation
             if (!name || !cuisine || !ingredients || !instructions || !tags) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
-    
+
             // Fetch the cuisine document
-            
+
             const cuisineDoc = await db.collection('cuisines').findOne({ name: cuisine });
             console.log(cuisine);
-            console.log("cusineDoc >>> ",cuisineDoc);
+            console.log("cusineDoc >>> ", cuisineDoc);
             if (!cuisineDoc) {
                 return res.status(400).json({ error: 'Invalid cuisine' });
             }
-    
+
             // Fetch the tag documents
             console.log(tags);
             const tagDocs = await db.collection('tags').find({ name: { $in: tags } }).toArray();
             if (tagDocs.length !== tags.length) {
                 return res.status(400).json({ error: 'One or more invalid tags' });
             }
-    
+
             // Create the new recipe object
             const newRecipie = {
                 name,
@@ -141,10 +142,10 @@ async function main() {
                     name: tag.name
                 }))
             };
-    
+
             // Insert the new recipe into the database
             const result = await db.collection('recipies').insertOne(newRecipie);
-    
+
             // Send back the created recipe
             res.status(201).json({
                 message: 'Recipie created successfully',
@@ -155,8 +156,66 @@ async function main() {
             res.status(500).json({ error: 'Internal server error' });
         }
     });
-    
+    //delete entries from data
+    app.delete('/recipies/:id', async function (req, res) {
+        try {
+            const id = req.params.id;
+            const result = await db.collection("recipies").deleteOne({ _id: new ObjectId(id) });
+            res.json({
+                result
+            })
+        } catch (e) {
+            console.error('Error deleting recipie:', e);
+            // res.status(500).json({ error: 'Internal server error' });
+            res.sendStatus(500);
+        }
+    })
+    //adding a new section into database
+    app.post('/recipies/:id', async function (req, res) {
+        try {
+            const recipiesId = req.params.id;
+            const { user, rating, comment } = req.body;
 
+            const newReview = { review_id: new ObjectId(), user, rating: Number(rating), comment, date: new Date() };
+            const result = await db.collection('recipies').updateOne({ _id: new ObjectId(recipiesId) }, { $push: { reviews: newReview } });
+
+            res.json({
+                result
+            })
+        } catch (e) {
+            console.error('Error deleting recipie:', e);
+            // res.status(500).json({ error: 'Internal server error' });
+            res.sendStatus(500);
+        }
+    })
+    //editing body in the database
+    app.put('/recipies/:recipiesId/reviews/:reviewId', async function(req,res){
+        try{
+            const recipiesId = req.params.id;
+            const reviewId = req.params.id;
+            const {user, rating, comment} = req.body;
+
+            const updateReviews={
+                review_id: new ObjectId(reviewId), 
+                user,
+                rating: Number(rating), 
+                comment,
+                date: new Date()
+            }
+            const result = await db.collection('recipies').updateOne({
+                _id: new ObjectId(recipiesId),
+                "reviews.review_id" : new ObjectId(reviewId)
+            },{
+                $set : {"reviews.$": updateReviews}
+            })
+            res.json({
+                result
+            })
+            
+        }catch(e){
+
+        }
+    })
 }
 
 main();
