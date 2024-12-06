@@ -189,33 +189,63 @@ async function main() {
         }
     })
     //editing body in the database
-    app.put('/recipies/:recipiesId/reviews/:reviewId', async function(req,res){
-        try{
-            const recipiesId = req.params.id;
-            const reviewId = req.params.id;
-            const {user, rating, comment} = req.body;
-
-            const updateReviews={
-                review_id: new ObjectId(reviewId), 
+    app.put('/recipies/:recipiesId/reviews/:reviewId', async function (req, res) {
+        try {
+            const recipiesId = req.params.recipiesId;
+            const reviewId = req.params.reviewId;
+            const { user, rating, comment } = req.body;
+            // Basic validation
+            if (!user || !rating || !comment) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+            const updateReviews = {
+                review_id:  new ObjectId(reviewId),
                 user,
-                rating: Number(rating), 
+                rating: Number(rating),
                 comment,
                 date: new Date()
             }
             const result = await db.collection('recipies').updateOne({
-                _id: new ObjectId(recipiesId),
-                "reviews.review_id" : new ObjectId(reviewId)
-            },{
-                $set : {"reviews.$": updateReviews}
+                _id: new ObjectId (recipiesId),
+                "reviews.review_id":  new ObjectId(reviewId)
+            }, {
+                $set: { "reviews.$": updateReviews }
             })
             res.json({
                 result
             })
-            
-        }catch(e){
 
+        } catch (e) {
+            console.error('Error adding review:', error);
+            res.status(500).json({ error: 'Internal server error' });
         }
     })
+    app.delete('/recipies/:recipiesId/reviews/:reviewId', async function (req, res) {
+        try {
+            const recipiesId = req.params.recipiesId;
+            const reviewId = req.params.reviewId;
+            const result = await db.collection('recipies').updateOne({
+                _id: new ObjectId(recipiesId)
+            }, {
+                $pull: { reviews: { review_id: new ObjectId(reviewId) } }
+            });
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Recipe not found' });
+            }
+
+            if (result.modifiedCount === 0) {
+                return res.status(404).json({ error: 'Review not found' });
+            }
+            res.json(404)({
+                result
+            });
+        } catch (e) {
+
+            console.error('Error deleting review:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    })
+    //completed lab7, should move on to lab8
 }
 
 main();
