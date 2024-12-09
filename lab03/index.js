@@ -51,23 +51,42 @@ async function main() {
     let db = await connect(mongoUri, dbname);
     const { ObjectId } = require("mongodb");
     // Routes
-    app.get("/recipies", async (req, res) => {
-        try {
-            const recipies = await db.collection("recipies").find().project({
-                name: 1,
-                cuisine: 1,
-                tags: 1,
-                prepTime: 1,
-            }).toArray();
+    // app.get("/recipies", async (req, res) => {
+    //     const authHeader = req.headers['authorization'];
+    //     if(!authHeader){
+    //         console.error("No Authorization Header");
+    //        return res.sendStatus(400);
+    //     }
+    //     const jwt = authHeader.split(' ')[1];
+    //     if (!jwt) {
+    //         console.error("Token Not Found!")
+    //         sendStatus(401);
+    //         return;
+    //     }
+    //     jwt.verify(jwt, process.env.TOKEN_SECRET, async function (err, payload) {
+    //         if (err) {
+    //             console.error("invalid Token")
+    //             return res.sendStatuts(403);
+    //         }
+    //         console.log(payload);
+    //         try {
+    //             const recipies = await db.collection("recipies").find().project({
+    //                 name: 1,
+    //                 cuisine: 1,
+    //                 tags: 1,
+    //                 prepTime: 1,
+    //             }).toArray();
 
-            res.json({ recipies });
-        } catch (error) {
-            console.error("Error fetching recipies:", error);
-            res.status(500).json({ error: "Internal server error" });
-        }
-    });
+    //             res.json({ recipies });
+    //         } catch (error) {
+    //             console.error("Error fetching recipies:", error);
+    //             res.status(500).json({ error: "Internal server error" });
+    //         }
+    //     });
+    // });
 
-    app.get('/recipies', async (req, res) => {
+    app.get('/recipies', verifyToken, async (req, res) => {
+
         try {
             const { tags, cuisine, ingredients, name } = req.query;
             let query = {};
@@ -269,6 +288,7 @@ async function main() {
     })
     //completed lab7, should move on to lab8
     app.post('/users', async function (req, res) {
+        console.log("req.body >>> ", req.body);
         const result = await db.collection("users").insertOne({
             'email': req.body.email,
             'password': await bcrypt.hash(req.body.password, 12)
@@ -279,20 +299,27 @@ async function main() {
         })
     })
     app.post('/login', async (req, res) => {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
+        try {
+            console.log("body >>> ", req.body);
+            const { email, password } = req.body;
+            if (!email || !password) {
+                return res.status(400).json({ message: 'Email and password are required' });
+            }
+            const user = await db.collection('users').findOne({ email: email });
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({ message: 'Invalid password' });
+            }
+            const accessToken = generateAccessToken(user._id, user.email);
+            res.json({ accessToken: accessToken });
+        } catch (e) {
+            console.log(e);
+            res.sendStatus(500);
         }
-        const user = await db.collection('users').findOne({ email: email });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Invalid password' });
-        }
-        const accessToken = generateAccessToken(user._id, user.email);
-        res.json({ accessToken: accessToken });
+
     });
 }
 
