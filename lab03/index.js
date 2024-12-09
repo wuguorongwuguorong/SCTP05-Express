@@ -23,6 +23,28 @@ async function connect(uri, dbname) {
     _db = client.db(dbname);
     return _db;
 }
+const jwt = require('jsonwebtoken');
+
+const generateAccessToken = (id, email) => {
+    return jwt.sign({
+        'user_id': id,
+        'email': email
+    }, process.env.TOKEN_SECRET, {
+        expiresIn: "1h"
+    });
+}
+
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.sendStatus(403);
+    jwt.verify(token, process.env.TOKEN_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+};
+
 // SETUP END
 async function main() {
 
@@ -199,15 +221,15 @@ async function main() {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
             const updateReviews = {
-                review_id:  new ObjectId(reviewId),
+                review_id: new ObjectId(reviewId),
                 user,
                 rating: Number(rating),
                 comment,
                 date: new Date()
             }
             const result = await db.collection('recipies').updateOne({
-                _id: new ObjectId (recipiesId),
-                "reviews.review_id":  new ObjectId(reviewId)
+                _id: new ObjectId(recipiesId),
+                "reviews.review_id": new ObjectId(reviewId)
             }, {
                 $set: { "reviews.$": updateReviews }
             })
@@ -246,6 +268,32 @@ async function main() {
         }
     })
     //completed lab7, should move on to lab8
+    app.post('/users', async function (req, res) {
+        const result = await db.collection("users").insertOne({
+            'email': req.body.email,
+            'password': await bcrypt.hash(req.body.password, 12)
+        })
+        res.json({
+            "message": "New user account",
+            "result": result
+        })
+    })
+    app.post('/login', async (req, res) => {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+        const user = await db.collection('users').findOne({ email: email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Invalid password' });
+        }
+        const accessToken = generateAccessToken(user._id, user.email);
+        res.json({ accessToken: accessToken });
+    });
 }
 
 main();
